@@ -63,74 +63,114 @@ class _MyHomePageState extends State<MyHomePage> {
   double _previousScale = 1.0;
   Offset _origin = Offset(0.0, 0.0);
   Offset _previousOffset = Offset(0.0, 0.0);
+  double? _width;
+  double? _height;
+  double? imageFittedWidth;
+  double? imageFittedHeight;
+  bool widthFitted = false;
+  double _extraWidth = 0;
+  double _extraHeight = 0;
+
+  void calculateFittedHeightWidth() {
+    _height = MediaQuery.of(context).size.height * 0.5;
+    _width = MediaQuery.of(context).size.width;
+    double imageRealWidth = 487;
+    double imageRealHeight = 696;
+    if (_height! / _width! > imageRealHeight / imageRealWidth) {
+      widthFitted = true;
+      imageFittedWidth = _width;
+      imageFittedHeight = _width! / (imageRealWidth / imageRealHeight);
+    } else {
+      widthFitted = false;
+      imageFittedHeight = _height;
+      imageFittedWidth = _height! / (imageRealHeight / imageRealWidth);
+      _extraWidth = _width! - imageFittedWidth!;
+    }
+    print("widthFitted " + widthFitted.toString());
+  }
 
   @override
   Widget build(BuildContext context) {
-    double screenWidth = MediaQuery.of(context).size.width;
-    double screenHeight = MediaQuery.of(context).size.height;
-    print("screenWidth " + screenWidth.toString());
-    print("screenHeight " + screenHeight.toString());
+    calculateFittedHeightWidth();
+
     return Scaffold(
-      appBar: AppBar(
-        title: Text('Zoom Crop Image'),
-      ),
-      body: Center(
-        child: ClipRect(
-          child: GestureDetector(
-            onScaleStart: (details) {
-              _previousScale = _scale;
-              _previousOffset = details.focalPoint;
-            },
-            onScaleUpdate: (details) {
-              setState(() {
-                _scale = _previousScale * details.scale;
-                _scale = _scale.clamp(1.0,
-                    5.0); // Adjust the min and max zoom levels as per your requirement
-                if (_scale == _previousScale) {
-                  Offset calculatedOrigin = _origin +
-                      (_origin -
-                          (details.focalPoint -
-                              (_previousOffset - _origin) /
-                                  _previousScale *
-                                  _scale));
-
-                  if (calculatedOrigin.dx > -screenWidth / 2 &&
-                      calculatedOrigin.dx < screenWidth / 2) {
-                    _origin = calculatedOrigin;
-                  }
-                }
-                if (_scale == 1) {
-                  _origin = Offset.zero;
-                }
-              });
-
-              _previousOffset = details.focalPoint;
-            },
-            onScaleEnd: (details) {
-              // Perform any required cleanup or finalization
-            },
-            child: Stack(
-              children: [
-                Transform.scale(
-                  scale: _scale,
-                  origin: _origin,
-                  child: Image.asset(
-                      'assets/cat.png'), // Replace with your image asset
-                ),
-                Positioned.fill(
-                  child: Container(
-                    decoration: BoxDecoration(
-                      border: Border.all(color: Colors.red, width: 2.0),
-                    ),
-                    margin: EdgeInsets.all(
-                        20.0), // Adjust the margin as per your requirement
-                  ),
-                ),
-              ],
-            ),
-          ),
+        appBar: AppBar(
+          title: Text('Zoom Crop Image'),
         ),
-      ),
-    );
+        body: Center(
+            child: Container(
+                color: Colors.green,
+                child: ClipRect(
+                    child: SizedBox(
+                  width: imageFittedWidth,
+                  height: imageFittedHeight,
+                  child: FittedBox(
+                      child: SizedBox(
+                          width: imageFittedWidth,
+                          height: imageFittedHeight,
+                          child: LayoutBuilder(builder:
+                              (BuildContext ctx, BoxConstraints constraints) {
+
+
+                            // if the screen width >= 480 i.e Wide Screen
+                            return GestureDetector(
+                              onScaleStart: (details) {
+                                _previousScale = _scale;
+                                _previousOffset = details.focalPoint;
+                              },
+                              onScaleUpdate: (details) {
+                                setState(() {
+                                  _scale = _previousScale * details.scale;
+                                  _scale = _scale.clamp(1.0,
+                                      5.0); // Adjust the min and max zoom levels as per your requirement
+                                  if (_scale == _previousScale) {
+                                    Offset calculatedOrigin = _origin +
+                                        (_origin -
+                                            (details.focalPoint -
+                                                (_previousOffset - _origin) /
+                                                    _previousScale *
+                                                    _scale));
+
+
+                                    if (calculatedOrigin.dx > -(imageFittedWidth! / 2) &&
+                                        calculatedOrigin.dx < (imageFittedWidth! / 2) && calculatedOrigin.dy > -(imageFittedHeight! / 2) &&
+                                  calculatedOrigin.dy < (imageFittedHeight! / 2)) {
+                                      _origin = calculatedOrigin;
+                                    }
+
+                                  }
+                                  if (_scale == 1) {
+                                    _origin = Offset.zero;
+                                  }
+                                });
+
+                                _previousOffset = details.focalPoint;
+                              },
+                              onScaleEnd: (details) {
+                                // Perform any required cleanup or finalization
+                              },
+                              child: Stack(
+                                children: [
+                                  Transform.scale(
+                                    scale: _scale,
+                                    origin: _origin,
+                                    child: Image.asset(
+                                        'assets/cat.png'), // Replace with your image asset
+                                  ),
+                                  Positioned.fill(
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        border: Border.all(
+                                            color: Colors.white, width: 10.0),
+                                      ),
+                                      margin: EdgeInsets.all(
+                                          20.0), // Adjust the margin as per your requirement
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }))),
+                )))));
   }
 }
