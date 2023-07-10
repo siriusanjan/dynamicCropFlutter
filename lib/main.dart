@@ -1,8 +1,12 @@
 import 'dart:io';
 
 import 'package:factor_offset/utils/background_task.dart';
+import 'package:factor_offset/utils/drawImage.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
+import 'dart:ui' as ui;
+
+import 'package:flutter/services.dart';
 
 void main() {
   runApp(const MyApp());
@@ -70,12 +74,18 @@ class _MyHomePageState extends State<MyHomePage> {
   bool widthFitted = false;
   double _extraWidth = 0;
   double _extraHeight = 0;
+  double imageRealWidth = 487;
+  double imageRealHeight = 696;
+  double frameMargin = 20;
+  ui.Image? croppedImage;
+  String assertPath = "assets/cat.png";
+  Rect? cropRect;
+  double fittedFrameMargin=0;
 
   void calculateFittedHeightWidth() {
     _height = MediaQuery.of(context).size.height * 0.5;
     _width = MediaQuery.of(context).size.width;
-    double imageRealWidth = 487;
-    double imageRealHeight = 696;
+
     if (_height! / _width! > imageRealHeight / imageRealWidth) {
       widthFitted = true;
       imageFittedWidth = _width;
@@ -86,7 +96,31 @@ class _MyHomePageState extends State<MyHomePage> {
       imageFittedWidth = _height! / (imageRealHeight / imageRealWidth);
       _extraWidth = _width! - imageFittedWidth!;
     }
+  fittedFrameMargin=  frameMargin * (imageRealWidth / imageFittedWidth!);
+
     print("widthFitted " + widthFitted.toString());
+  }
+
+  Future<void> cropImage() async {
+    calcCropRect();
+    final bytes = await rootBundle.load(assertPath);
+    final codec = await ui.instantiateImageCodec(bytes.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    ui.PictureRecorder recorder = ui.PictureRecorder();
+    Canvas canvas = Canvas(recorder);
+    canvas.drawImageRect(frame.image, cropRect!, cropRect!, Paint());
+    recorder
+        .endRecording()
+        .toImage(cropRect!.width.floor(), cropRect!.height.floor())
+        .then((value) => {croppedImage = value});
+  }
+
+  void calcCropRect() {
+    double cropHeight = (imageRealHeight / _scale!) -
+        frameMargin * (imageRealHeight / imageFittedHeight!);
+    double cropWidth = (imageRealWidth / _scale!) -
+        frameMargin * (imageRealWidth / imageFittedWidth!);
+    cropRect = Rect.fromLTWH(0, 0, cropWidth, cropHeight);
   }
 
   @override
@@ -94,83 +128,117 @@ class _MyHomePageState extends State<MyHomePage> {
     calculateFittedHeightWidth();
 
     return Scaffold(
-        appBar: AppBar(
-          title: Text('Zoom Crop Image'),
-        ),
-        body: Center(
-            child: Container(
-                color: Colors.green,
-                child: ClipRect(
-                    child: SizedBox(
-                  width: imageFittedWidth,
-                  height: imageFittedHeight,
-                  child: FittedBox(
+      appBar: AppBar(
+        title: Text('Zoom Crop Image'),
+      ),
+      body: croppedImage == null
+          ? Center(
+              child: Container(
+                  color: Colors.green,
+                  child: ClipRect(
                       child: SizedBox(
-                          width: imageFittedWidth,
-                          height: imageFittedHeight,
-                          child: LayoutBuilder(builder:
-                              (BuildContext ctx, BoxConstraints constraints) {
+                    width: imageFittedWidth,
+                    height: imageFittedHeight,
+                    child: FittedBox(
+                        child: SizedBox(
+                            width: imageFittedWidth,
+                            height: imageFittedHeight,
+                            child: LayoutBuilder(builder:
+                                (BuildContext ctx, BoxConstraints constraints) {
+                              // if the screen width >= 480 i.e Wide Screen
+                              return GestureDetector(
+                                onScaleStart: (details) {
+                                  _previousScale = _scale;
+                                  _previousOffset = details.focalPoint;
+                                },
+                                onScaleUpdate: (details) {
+                                  setState(() {
+                                    _scale = _previousScale * details.scale;
+                                    _scale = _scale.clamp(1.0,
+                                        5.0); // Adjust the min and max zoom levels as per your requirement
+                                    if (_scale == _previousScale) {
+                                      Offset calculatedOrigin = _origin +
+                                          (_origin -
+                                              (details.focalPoint -
+                                                  (_previousOffset - _origin) /
+                                                      _previousScale *
+                                                      _scale));
 
-
-                            // if the screen width >= 480 i.e Wide Screen
-                            return GestureDetector(
-                              onScaleStart: (details) {
-                                _previousScale = _scale;
-                                _previousOffset = details.focalPoint;
-                              },
-                              onScaleUpdate: (details) {
-                                setState(() {
-                                  _scale = _previousScale * details.scale;
-                                  _scale = _scale.clamp(1.0,
-                                      5.0); // Adjust the min and max zoom levels as per your requirement
-                                  if (_scale == _previousScale) {
-                                    Offset calculatedOrigin = _origin +
-                                        (_origin -
-                                            (details.focalPoint -
-                                                (_previousOffset - _origin) /
-                                                    _previousScale *
-                                                    _scale));
-
-
-                                    if (calculatedOrigin.dx > -(imageFittedWidth! / 2) &&
-                                        calculatedOrigin.dx < (imageFittedWidth! / 2) && calculatedOrigin.dy > -(imageFittedHeight! / 2) &&
-                                  calculatedOrigin.dy < (imageFittedHeight! / 2)) {
-                                      _origin = calculatedOrigin;
+                                      if (calculatedOrigin.dx >
+                                              -(imageFittedWidth! / 2 +
+                                                  fittedFrameMargin/_scale) &&
+                                          calculatedOrigin.dx <
+                                              (imageFittedWidth! / 2 +
+                                                  fittedFrameMargin/_scale) &&
+                                          calculatedOrigin.dy >
+                                              -(imageFittedHeight! / 2 +
+                                                  fittedFrameMargin/_scale) &&
+                                          calculatedOrigin.dy <
+                                              (imageFittedHeight! / 2 +
+                                                  fittedFrameMargin/_scale)) {
+                                        _origin = calculatedOrigin;
+                                      }
                                     }
+                                    if (_scale == 1) {
+                                      _origin = Offset.zero;
+                                    }
+                                  });
 
-                                  }
-                                  if (_scale == 1) {
-                                    _origin = Offset.zero;
-                                  }
-                                });
-
-                                _previousOffset = details.focalPoint;
-                              },
-                              onScaleEnd: (details) {
-                                // Perform any required cleanup or finalization
-                              },
-                              child: Stack(
-                                children: [
-                                  Transform.scale(
-                                    scale: _scale,
-                                    origin: _origin,
-                                    child: Image.asset(
-                                        'assets/cat.png'), // Replace with your image asset
-                                  ),
-                                  Positioned.fill(
-                                    child: Container(
-                                      decoration: BoxDecoration(
-                                        border: Border.all(
-                                            color: Colors.white, width: 10.0),
-                                      ),
-                                      margin: EdgeInsets.all(
-                                          20.0), // Adjust the margin as per your requirement
+                                  _previousOffset = details.focalPoint;
+                                },
+                                onScaleEnd: (details) {
+                                  // Perform any required cleanup or finalization
+                                },
+                                child: Stack(
+                                  children: [
+                                    Transform.scale(
+                                      scale: _scale,
+                                      origin: _origin,
+                                      child: Image.asset(
+                                          assertPath), // Replace with your image asset
                                     ),
-                                  ),
-                                ],
-                              ),
-                            );
-                          }))),
-                )))));
+                                    Positioned.fill(
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          border: Border.all(
+                                              color: Colors.black, width: 10.0),
+                                        ),
+                                        margin: EdgeInsets.all(
+                                            frameMargin), // Adjust the margin as per your requirement
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            }))),
+                  ))))
+          : SizedBox(
+              width: _width!,
+              height: _height!,
+              child: FittedBox(
+                child: SizedBox(
+                    width: _width,
+                    height: _height,
+                    child:
+                        CustomPaint(painter: DrawImage(image: croppedImage!))),
+              ),
+            ),
+      // Row(
+      //   children: [
+      //     ElevatedButton(
+      //         onPressed: () {
+      //           setState(() {
+      //             croppedImage = null;
+      //           });
+      //         },
+      //         child: Text("Back")),
+      //     ElevatedButton(
+      //         onPressed: () {
+      //           cropImage().then((value) => setState(() {}));
+      //         },
+      //         child: Text("Crop"))
+      //   ],
+      // )
+    );
   }
 }
