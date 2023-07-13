@@ -9,8 +9,8 @@ class DrawImage extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     // Draw image
-    final imageOffset = Offset(0, 0); // Adjust the offset as needed
-    canvas.drawImage(image, imageOffset, Paint());
+    final imageOffset = Offset(size.width/2, size.height/2); // Adjust the offset as needed
+    canvas.drawImage(image, Offset.zero, Paint());
 
     // Add additional custom drawings here if needed
   }
