@@ -40,7 +40,7 @@ class MyApp extends StatelessWidget {
         colorScheme: ColorScheme.fromSeed(seedColor: Colors.deepPurple),
         useMaterial3: true,
       ),
-      home: const RotateScale(),
+      home: const MyHomePage(title: "Dynamic Crop"),
     );
   }
 }
@@ -84,14 +84,8 @@ class _MyHomePageState extends State<MyHomePage> {
   double fittedFrameMargin = 0;
 
   void calculateFittedHeightWidth() {
-    _height = MediaQuery
-        .of(context)
-        .size
-        .height * 0.5;
-    _width = MediaQuery
-        .of(context)
-        .size
-        .width;
+    _height = MediaQuery.of(context).size.height * 0.5;
+    _width = MediaQuery.of(context).size.width;
 
     if (_height! / _width! > imageRealHeight / imageRealWidth) {
       widthFitted = true;
@@ -130,6 +124,44 @@ class _MyHomePageState extends State<MyHomePage> {
     cropRect = Rect.fromLTWH(0, 0, cropWidth, cropHeight);
   }
 
+  void _onScaleStart(ScaleStartDetails details) {
+    _previousScale = _scale;
+    _previousOffset = details.focalPoint;
+  }
+
+  void _onScaleUpdate(ScaleUpdateDetails details) {
+    setState(() {
+      _scale = _previousScale * details.scale;
+      _scale = _scale.clamp(1.0,
+          10.0); // Adjust the min and max zoom levels as per your requirement
+      if (_scale == _previousScale) {
+        Offset calculatedOrigin = _origin +
+            (_origin -
+                    (details.focalPoint -
+                        (_previousOffset - _origin) /
+                            _previousScale *
+                            _scale)) /
+                _scale;
+
+        if (calculatedOrigin.dx >
+                -(imageFittedWidth! / 2 + fittedFrameMargin / _scale) &&
+            calculatedOrigin.dx <
+                (imageFittedWidth! / 2 + fittedFrameMargin / _scale) &&
+            calculatedOrigin.dy >
+                -(imageFittedHeight! / 2 + fittedFrameMargin / _scale) &&
+            calculatedOrigin.dy <
+                (imageFittedHeight! / 2 + fittedFrameMargin / _scale)) {
+          _origin = calculatedOrigin;
+        }
+      }
+      if (_scale == 1) {
+        _origin = Offset.zero;
+      }
+    });
+
+    _previousOffset = details.focalPoint;
+  }
+
   @override
   Widget build(BuildContext context) {
     calculateFittedHeightWidth();
@@ -139,107 +171,80 @@ class _MyHomePageState extends State<MyHomePage> {
         title: Text('Zoom Crop Image'),
       ),
       body: croppedImage == null
-          ? GestureDetector(
-          onScaleStart: (details) {
-            _previousScale = _scale;
-            _previousOffset = details.focalPoint;
-          },
-          onScaleUpdate: (details) {
-            setState(() {
-              _scale = _previousScale * details.scale;
-              _scale = _scale.clamp(1.0,
-                  10.0); // Adjust the min and max zoom levels as per your requirement
-              if (_scale == _previousScale) {
-                Offset calculatedOrigin = _origin +
-                    (_origin -
-                        (details.focalPoint -
-                            (_previousOffset -
-                                _origin) /
-                                _previousScale *
-                                _scale))/_scale;
-
-                if (calculatedOrigin.dx >
-                    -(imageFittedWidth! / 2+frameMargin) &&
-                    calculatedOrigin.dx <
-                        (imageFittedWidth! / 2 +
-                            fittedFrameMargin/2 ) &&
-                    calculatedOrigin.dy >
-                        -(imageFittedHeight! / 2 +
-                            fittedFrameMargin ) &&
-                    calculatedOrigin.dy <
-                        (imageFittedHeight! / 2 +
-                            fittedFrameMargin )) {
-                  _origin = calculatedOrigin;
-                }
-              }
-              if (_scale == 1) {
-                _origin = Offset.zero;
-              }
-            });
-
-            _previousOffset = details.focalPoint;
-          },
-          onScaleEnd: (details) {
-            // Perform any required cleanup or finalization
-          },
-          child: Column(children: [
-            Center(
-                child: Container(
-                    color: Colors.green,
-                    child: ClipRect(
-                        child: SizedBox(
+          ? Column(children: [
+              Center(
+                  child: Container(
+                      color: Colors.green,
+                      child: SizedBox(
                           width: imageFittedWidth,
                           height: imageFittedHeight,
                           child: FittedBox(
-                              child: SizedBox(
-                                  width: imageFittedWidth!,
-                                  height: imageFittedHeight!,
-                                  child: LayoutBuilder(builder: (
-                                      BuildContext ctx,
-                                      BoxConstraints constraints) {
-                                  print("constrain heighti "+  constraints.maxHeight.toString());
-                                  print("constrain width "+  constraints.maxWidth.toString());
-                                  print("constrain imageFittedWidth "+  imageFittedWidth.toString());
-                                  print("constrain imageFittedHeight"+  imageFittedHeight.toString());
-                                    constraints.maxWidth;
-                                    // if the screen width >= 480 i.e Wide Screen
-                                    return Stack(
-                                      children: [
-                                        Transform.scale(
-                                          scale: _scale,
-                                          origin: _origin,
-                                          child: Image.asset(
-                                              assertPath), // Replace with your image asset
-                                        ),
-                                        Positioned(
-                                          left:frameMargin,
-                                          top:frameMargin,
-                                          right:frameMargin,
-                                          bottom:frameMargin,
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              border: Border.all(
-                                                  color: Colors.black,
-                                                  width: 10.0),
-                                            )// Adjust the margin as per your requirement
-                                          ),
-                                        ),
-                                      ],
-                                    );
-                                  }))),
-                        ))))
-          ]))
+                            child: Container(
+                                color: Colors.green,
+                                child: GestureDetector(
+                                    onScaleStart: (details) {
+                                      _onScaleStart(details);
+                                    },
+                                    onScaleUpdate: (details) {
+                                      _onScaleUpdate(details);
+                                    },
+                                    onScaleEnd: (details) {
+                                      // Perform any required cleanup or finalization
+                                    },
+                                    child: SizedBox(
+                                        width: imageFittedWidth!,
+                                        height: imageFittedHeight!,
+                                        child: LayoutBuilder(builder:
+                                            (BuildContext ctx,
+                                                BoxConstraints constraints) {
+                                          print("constrain heighti " +
+                                              constraints.maxHeight.toString());
+                                          print("constrain width " +
+                                              constraints.maxWidth.toString());
+                                          print("constrain imageFittedWidth " +
+                                              imageFittedWidth.toString());
+                                          print("constrain imageFittedHeight" +
+                                              imageFittedHeight.toString());
+                                          constraints.maxWidth;
+                                          // if the screen width >= 480 i.e Wide Screen
+                                          return Stack(
+                                            children: [
+                                              Transform.scale(
+                                                  scale: _scale,
+                                                  origin: _origin,
+                                                  child:
+                                                      Image.asset(assertPath)),
+                                              // Replace with your image asset
+
+                                              Positioned(
+                                                left: frameMargin,
+                                                top: frameMargin,
+                                                right: frameMargin,
+                                                bottom: frameMargin,
+                                                child: Container(
+                                                    decoration: BoxDecoration(
+                                                  border: Border.all(
+                                                      color: Colors.black,
+                                                      width: 10.0),
+                                                ) // Adjust the margin as per your requirement
+                                                    ),
+                                              ),
+                                            ],
+                                          );
+                                        })))),
+                          ))))
+            ])
           : SizedBox(
-        width: _width!,
-        height: _height!,
-        child: FittedBox(
-          child: SizedBox(
-              width: _width,
-              height: _height,
-              child:
-              CustomPaint(painter: DrawImage(image: croppedImage!))),
-        ),
-      ),
+              width: _width!,
+              height: _height!,
+              child: FittedBox(
+                child: SizedBox(
+                    width: _width,
+                    height: _height,
+                    child:
+                        CustomPaint(painter: DrawImage(image: croppedImage!))),
+              ),
+            ),
       // Row(
       //   children: [
       //     ElevatedButton(
